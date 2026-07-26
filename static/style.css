@@ -267,8 +267,44 @@ h1, h2, h3, h4, .brand h1, .section-title, .status-title {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 12px;
+    padding: 10px 12px;
     margin-top: 4px;
+    animation: fadeInUp 0.25s ease-out;
+}
+
+.current-file-card:hover {
+    border-color: rgba(255, 110, 0, 0.25);
+    box-shadow: 0 4px 12px rgba(255, 110, 0, 0.03);
+}
+
+.file-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-left: auto;
+    transition: all 0.2s;
+}
+
+.file-delete-btn:hover {
+    color: var(--error);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.file-list-empty {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 14px;
+    border: 1px dashed var(--border-color);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.005);
 }
 
 .file-icon-wrapper {

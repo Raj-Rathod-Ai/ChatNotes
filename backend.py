@@ -20,7 +20,6 @@ DOCS_DIR = os.environ.get("DOCS_DIR", "docs")
 app = FastAPI(title="chat with your notes")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 _store = None
-_curr_file = None
 
 
 @app.on_event("startup")
@@ -52,10 +51,18 @@ def get_store():
 
 @app.get("/api/status")
 def status():
+    files = []
+    docs_dir = Path(DOCS_DIR)
+    if docs_dir.exists():
+        files = [f.name for f in docs_dir.glob("*") if f.suffix.lower() in (".pdf", ".txt", ".md")]
+        
+    groq_key = bool(os.environ.get("GROQ_API_KEY"))
+    mistral_key = bool(os.environ.get("MISTRAL_API_KEY"))
+    
     return {
         "index_ready": get_store() is not None,
-        "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
-        "current_file": _curr_file,
+        "groq_key_set": groq_key or mistral_key,
+        "current_files": files,
     }
 
 @app.get("/api/ping")
@@ -64,28 +71,94 @@ def ping():
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
-    global _store, _curr_file
+    global _store
     if Path(file.filename).suffix.lower() not in (".pdf", ".txt", ".md"):
         raise HTTPException(400, "wrong file type")
+        
     docs_dir = Path(DOCS_DIR)
-    if docs_dir.exists():
-        shutil.rmtree(docs_dir)
-    docs_dir.mkdir(parents=True)
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    
     dest = docs_dir / file.filename
     dest.write_bytes(await file.read())
 
     try:
         # Release vector store SQLite locks and run garbage collection before rebuilding
-        global _store
         _store = None
         import gc
         gc.collect()
         
         _store = rag.build_index(DOCS_DIR)
     except ValueError as e:
+        # Clean up the file if indexing failed
+        if dest.exists():
+            dest.unlink()
         raise HTTPException(400, str(e))
-    _curr_file = file.filename
+        
     return {"ok": True, "filename": file.filename}
+
+@app.post("/api/clear")
+def clear_all():
+    global _store
+    # Clear vector store and force garbage collection
+    _store = None
+    import gc
+    gc.collect()
+    
+    # Clear documents directory
+    docs_dir = Path(DOCS_DIR)
+    if docs_dir.exists():
+        shutil.rmtree(docs_dir)
+        docs_dir.mkdir(parents=True)
+        
+    # Delete chroma DB files
+    chroma_dir = Path(rag.CHROMA_DIR)
+    if chroma_dir.exists():
+        try:
+            shutil.rmtree(chroma_dir)
+        except Exception as e:
+            print(f"Warning: Failed to delete chroma directory: {e}")
+            
+    return {"ok": True}
+
+class RemoveRequest(BaseModel):
+    filename: str
+
+@app.post("/api/remove_file")
+def remove_file(req: RemoveRequest):
+    global _store
+    docs_dir = Path(DOCS_DIR)
+    target = docs_dir / req.filename
+    
+    if not target.exists():
+        raise HTTPException(404, "file not found")
+        
+    # Delete file
+    target.unlink()
+    
+    # Release vector store SQLite locks and run garbage collection
+    _store = None
+    import gc
+    gc.collect()
+    
+    # Determine remaining files
+    remaining = [f for f in docs_dir.glob("*") if f.suffix.lower() in (".pdf", ".txt", ".md")]
+    
+    if not remaining:
+        # No files remaining, delete vector store
+        chroma_dir = Path(rag.CHROMA_DIR)
+        if chroma_dir.exists():
+            try:
+                shutil.rmtree(chroma_dir)
+            except Exception as e:
+                print(f"Warning: Failed to delete chroma directory: {e}")
+    else:
+        # Rebuild index from remaining files
+        try:
+            _store = rag.build_index(DOCS_DIR)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+            
+    return {"ok": True}
 
 class ChatRequest(BaseModel):
     question: str

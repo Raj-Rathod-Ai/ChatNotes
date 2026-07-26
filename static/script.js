@@ -1,9 +1,7 @@
 // Chat Notes Application Logic
 const chatEl = document.getElementById('chat');
 const fileInput = document.getElementById('fileInput');
-const fileCard = document.getElementById('fileCard');
-const currentFileEl = document.getElementById('currentFile');
-const fileStatusSub = document.getElementById('fileStatusSub');
+const fileList = document.getElementById('fileList');
 const activeDocTitle = document.getElementById('activeDocTitle');
 const statusBox = document.getElementById('statusBox');
 const statusDot = document.getElementById('statusDot');
@@ -32,45 +30,59 @@ async function refreshStatus() {
         statusBox.className = 'status-pill';
 
         if (!d.groq_key_set) {
-            statusDot.classList.add('error');
-            statusBox.classList.add('status-error-pill');
+            statusDot.className = 'status-dot-pulse error';
+            statusBox.className = 'status-pill status-error-pill';
             statusBox.textContent = 'API key missing';
             
             updateComposerState(false, false);
         } else if (!d.index_ready) {
-            statusDot.classList.add('warning');
-            statusBox.classList.add('status-loading');
+            statusDot.className = 'status-dot-pulse warning';
+            statusBox.className = 'status-pill status-loading';
             statusBox.textContent = 'Awaiting document';
             
             updateComposerState(false, true);
         } else {
-            statusDot.classList.add('success');
-            statusBox.classList.add('status-ready');
+            statusDot.className = 'status-dot-pulse success';
+            statusBox.className = 'status-pill status-ready';
             statusBox.textContent = 'System Ready';
             
             updateComposerState(true, true);
         }
 
-        // Update active file displays
-        if (d.current_file) {
-            currentFileEl.textContent = d.current_file;
-            fileStatusSub.textContent = 'Document indexed';
-            activeDocTitle.textContent = d.current_file;
+        // Render current files list dynamically
+        fileList.innerHTML = '';
+        if (d.current_files && d.current_files.length > 0) {
+            d.current_files.forEach(filename => {
+                const iconName = getFileIconName(filename);
+                const fileCard = document.createElement('div');
+                fileCard.className = 'current-file-card';
+                fileCard.innerHTML = `
+                    <div class="file-icon-wrapper">
+                        <i data-lucide="${iconName}"></i>
+                    </div>
+                    <div class="file-details">
+                        <p class="file-name truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</p>
+                        <p class="file-status-sub">Ready to query</p>
+                    </div>
+                    <button class="file-delete-btn" onclick="removeDocument('${escapeHtml(filename)}')" title="Delete document">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                `;
+                fileList.appendChild(fileCard);
+            });
             
-            // Adjust file card appearance
-            fileCard.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-            fileCard.style.background = 'rgba(16, 185, 129, 0.03)';
-            
-            // Update document icon based on extension
-            updateFileIcon(d.current_file);
+            // Update active header document title info
+            const docCount = d.current_files.length;
+            activeDocTitle.textContent = `${docCount} Document${docCount > 1 ? 's' : ''} Loaded`;
+            document.querySelector('.workspace-header p').textContent = d.current_files.join(', ');
         } else {
-            currentFileEl.textContent = 'No document loaded';
-            fileStatusSub.textContent = 'Ready to upload';
+            fileList.innerHTML = `
+                <div class="file-list-empty">
+                    No documents loaded
+                </div>
+            `;
             activeDocTitle.textContent = 'No Active Document';
-            
-            fileCard.style.borderColor = '';
-            fileCard.style.background = '';
-            document.getElementById('fileIcon').setAttribute('data-lucide', 'file-text');
+            document.querySelector('.workspace-header p').textContent = 'Upload files on the left to start querying';
         }
         
         lucide.createIcons();
@@ -86,9 +98,9 @@ async function refreshStatus() {
 function updateComposerState(isReady, hasKey) {
     if (!hasKey) {
         questionInput.disabled = true;
-        questionInput.placeholder = "Configure GROQ_API_KEY in .env to start...";
+        questionInput.placeholder = "Configure GROQ_API_KEY or MISTRAL_API_KEY in .env to start...";
         sendBtn.disabled = true;
-        sendBtn.title = "GROQ_API_KEY environment variable is not set";
+        sendBtn.title = "LLM API credentials are not set";
     } else if (!isReady) {
         questionInput.disabled = true;
         questionInput.placeholder = "Please upload a document to enable chat...";
@@ -103,16 +115,32 @@ function updateComposerState(isReady, hasKey) {
 }
 
 // Utility to change icon depending on the file suffix
-function updateFileIcon(filename) {
+function getFileIconName(filename) {
     const ext = filename.split('.').pop().toLowerCase();
-    const iconEl = document.getElementById('fileIcon');
+    if (ext === 'pdf') return 'file-text';
+    if (ext === 'md') return 'file-code';
+    return 'file-signature';
+}
+
+// Remove single document trigger
+async function removeDocument(filename) {
+    if (!confirm(`Are you sure you want to remove "${filename}" from the context index?`)) return;
     
-    if (ext === 'pdf') {
-        iconEl.setAttribute('data-lucide', 'file-text');
-    } else if (ext === 'md') {
-        iconEl.setAttribute('data-lucide', 'file-code');
-    } else {
-        iconEl.setAttribute('data-lucide', 'file-signature');
+    try {
+        const res = await fetch('/api/remove_file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+        
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || "Failed to delete file.");
+        }
+        
+        await refreshStatus();
+    } catch (err) {
+        alert("Deletion failed: " + err.message);
     }
 }
 
@@ -158,10 +186,25 @@ async function handleFileUpload(file) {
         return;
     }
 
-    currentFileEl.textContent = 'Uploading...';
-    fileStatusSub.textContent = 'Saving file';
-    fileCard.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-    fileCard.style.background = 'rgba(245, 158, 11, 0.03)';
+    // Add a temporary card with a loader inside fileList so the user sees progress!
+    const tempCard = document.createElement('div');
+    tempCard.className = 'current-file-card';
+    tempCard.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+    tempCard.style.background = 'rgba(245, 158, 11, 0.03)';
+    tempCard.innerHTML = `
+        <div class="file-icon-wrapper">
+            <div class="typing-dots" style="padding:0;"><span></span><span></span><span></span></div>
+        </div>
+        <div class="file-details">
+            <p class="file-name truncate">${escapeHtml(file.name)}</p>
+            <p class="file-status-sub">Uploading & indexing...</p>
+        </div>
+    `;
+    
+    // Remove the empty list container placeholder if present
+    const emptyMsg = fileList.querySelector('.file-list-empty');
+    if (emptyMsg) emptyMsg.remove();
+    fileList.appendChild(tempCard);
     
     const fd = new FormData();
     fd.append('file', file);
@@ -177,14 +220,9 @@ async function handleFileUpload(file) {
             throw new Error(err.detail || "Server failed to process document.");
         }
         
-        fileStatusSub.textContent = 'Index completed ✓';
         await refreshStatus();
     } catch (err) {
         alert("Upload & Indexing failed: " + err.message);
-        currentFileEl.textContent = 'No document loaded';
-        fileStatusSub.textContent = 'Ready to upload';
-        fileCard.style.borderColor = '';
-        fileCard.style.background = '';
         await refreshStatus();
     } finally {
         fileInput.value = '';
@@ -192,23 +230,40 @@ async function handleFileUpload(file) {
 }
 
 // Clear Chat Action
-document.getElementById('clearBtn').addEventListener('click', () => {
-    chatEl.innerHTML = `
-        <div id="emptyState" class="empty-state">
-            <div class="empty-icon-glow">
-                <i data-lucide="message-square-plus"></i>
+document.getElementById('clearBtn').addEventListener('click', async () => {
+    if (!confirm("Are you sure you want to clear the chat history and delete all uploaded documents?")) return;
+    
+    try {
+        // 1. Clear files and index database on backend
+        const res = await fetch('/api/clear', {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            throw new Error("Failed to clear backend database index.");
+        }
+        
+        // 2. Wipe UI chat elements and render empty state
+        chatEl.innerHTML = `
+            <div id="emptyState" class="empty-state">
+                <div class="empty-icon-glow">
+                    <i data-lucide="message-square-plus"></i>
+                </div>
+                <h3>Ask your notes anything</h3>
+                <p>Upload a textbook, article, notes, or any PDF/TXT/MD, and this assistant will read it to answer your questions with citations.</p>
+                
+                <div class="suggested-queries">
+                    <button class="suggestion-chip" onclick="useQuerySuggestion(this)">Summarize this document in 5 key takeaways.</button>
+                    <button class="suggestion-chip" onclick="useQuerySuggestion(this)">What are the core concepts or definitions introduced?</button>
+                    <button class="suggestion-chip" onclick="useQuerySuggestion(this)">Are there any action items or next steps mentioned?</button>
+                </div>
             </div>
-            <h3>Ask your notes anything</h3>
-            <p>Upload a textbook, article, notes, or any PDF/TXT/MD, and this assistant will read it to answer your questions with citations.</p>
-            
-            <div class="suggested-queries">
-                <button class="suggestion-chip" onclick="useQuerySuggestion(this)">Summarize this document in 5 key takeaways.</button>
-                <button class="suggestion-chip" onclick="useQuerySuggestion(this)">What are the core concepts or definitions introduced?</button>
-                <button class="suggestion-chip" onclick="useQuerySuggestion(this)">Are there any action items or next steps mentioned?</button>
-            </div>
-        </div>
-    `;
-    lucide.createIcons();
+        `;
+        
+        // 3. Wipes documents view in the sidebar status list
+        await refreshStatus();
+    } catch (err) {
+        alert("Clear failed: " + err.message);
+    }
 });
 
 // Markdown Rendering Engine
