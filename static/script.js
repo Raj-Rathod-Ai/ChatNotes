@@ -23,77 +23,94 @@ document.addEventListener('DOMContentLoaded', () => {
 async function refreshStatus() {
     try {
         const d = await fetch('/api/status').then(r => r.json());
-        indexReady = d.index_ready;
+        indexReady = !!d.index_ready;
 
         // Update system status indicator
-        statusDot.className = 'status-dot-pulse';
-        statusBox.className = 'status-pill';
+        if (statusDot && statusBox) {
+            statusDot.className = 'status-dot-pulse';
+            statusBox.className = 'status-pill';
 
-        if (!d.groq_key_set) {
-            statusDot.className = 'status-dot-pulse error';
-            statusBox.className = 'status-pill status-error-pill';
-            statusBox.textContent = 'API key missing';
-            
-            updateComposerState(false, false);
-        } else if (!d.index_ready) {
-            statusDot.className = 'status-dot-pulse warning';
-            statusBox.className = 'status-pill status-loading';
-            statusBox.textContent = 'Awaiting document';
-            
-            updateComposerState(false, true);
-        } else {
-            statusDot.className = 'status-dot-pulse success';
-            statusBox.className = 'status-pill status-ready';
-            statusBox.textContent = 'System Ready';
-            
-            updateComposerState(true, true);
+            if (!d.groq_key_set) {
+                statusDot.className = 'status-dot-pulse error';
+                statusBox.className = 'status-pill status-error-pill';
+                statusBox.textContent = 'API key missing';
+                updateComposerState(false, false);
+            } else if (!d.index_ready) {
+                statusDot.className = 'status-dot-pulse warning';
+                statusBox.className = 'status-pill status-loading';
+                statusBox.textContent = 'Awaiting document';
+                updateComposerState(false, true);
+            } else {
+                statusDot.className = 'status-dot-pulse success';
+                statusBox.className = 'status-pill status-ready';
+                statusBox.textContent = 'System Ready';
+                updateComposerState(true, true);
+            }
         }
 
         // Render current files list dynamically
-        fileList.innerHTML = '';
-        if (d.current_files && d.current_files.length > 0) {
-            d.current_files.forEach(filename => {
-                const iconName = getFileIconName(filename);
-                const fileCard = document.createElement('div');
-                fileCard.className = 'current-file-card';
-                fileCard.innerHTML = `
-                    <div class="file-icon-wrapper">
-                        <i data-lucide="${iconName}"></i>
-                    </div>
-                    <div class="file-details">
-                        <p class="file-name truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</p>
-                        <p class="file-status-sub">Ready to query</p>
-                    </div>
-                    <button class="file-delete-btn" title="Delete document">
-                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
-                    </button>
-                `;
-                fileCard.querySelector('.file-delete-btn').addEventListener('click', () => {
-                    removeDocument(filename);
-                });
-                fileList.appendChild(fileCard);
-            });
+        if (fileList) {
+            fileList.innerHTML = '';
+            const currentFiles = d.current_files || [];
             
-            // Update active header document title info
-            const docCount = d.current_files.length;
-            activeDocTitle.textContent = `${docCount} Document${docCount > 1 ? 's' : ''} Loaded`;
-            document.querySelector('.workspace-header p').textContent = d.current_files.join(', ');
-        } else {
-            fileList.innerHTML = `
-                <div class="file-list-empty">
-                    No documents loaded
-                </div>
-            `;
-            activeDocTitle.textContent = 'No Active Document';
-            document.querySelector('.workspace-header p').textContent = 'Upload files on the left to start querying';
+            if (currentFiles.length > 0) {
+                currentFiles.forEach(filename => {
+                    const iconName = getFileIconName(filename);
+                    const fileCard = document.createElement('div');
+                    fileCard.className = 'current-file-card';
+                    fileCard.innerHTML = `
+                        <div class="file-icon-wrapper">
+                            <i data-lucide="${iconName}"></i>
+                        </div>
+                        <div class="file-details">
+                            <p class="file-name truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</p>
+                            <p class="file-status-sub">Ready to query</p>
+                        </div>
+                        <button class="file-delete-btn" title="Delete document">
+                            <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    `;
+                    fileCard.querySelector('.file-delete-btn').addEventListener('click', () => {
+                        removeDocument(filename);
+                    });
+                    fileList.appendChild(fileCard);
+                });
+                
+                // Update active header document title info
+                if (activeDocTitle) {
+                    const docCount = currentFiles.length;
+                    activeDocTitle.textContent = `${docCount} Document${docCount > 1 ? 's' : ''} Loaded`;
+                }
+                const headerSub = document.querySelector('.workspace-header p');
+                if (headerSub) {
+                    headerSub.textContent = currentFiles.join(', ');
+                }
+            } else {
+                fileList.innerHTML = `
+                    <div class="file-list-empty">
+                        No documents loaded
+                    </div>
+                `;
+                if (activeDocTitle) {
+                    activeDocTitle.textContent = 'No Active Document';
+                }
+                const headerSub = document.querySelector('.workspace-header p');
+                if (headerSub) {
+                    headerSub.textContent = 'Upload files on the left to start querying';
+                }
+            }
         }
         
-        lucide.createIcons();
+        if (window.lucide) {
+            lucide.createIcons();
+        }
     } catch (err) {
         console.error("Failed to fetch system status:", err);
-        statusDot.className = 'status-dot-pulse error';
-        statusBox.className = 'status-pill status-error-pill';
-        statusBox.textContent = 'Connection failed';
+        if (statusDot && statusBox) {
+            statusDot.className = 'status-dot-pulse error';
+            statusBox.className = 'status-pill status-error-pill';
+            statusBox.textContent = 'Connection failed';
+        }
     }
 }
 
