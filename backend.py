@@ -2,7 +2,8 @@ import os
 import shutil
 from pathlib import Path
 
-# Detect read-only filesystem (typical for Render runtime containers running Docker)
+# Force writable directories in /tmp if running inside a Linux Docker container (like on Render)
+is_in_docker = os.path.exists('/.dockerenv') or Path('/app').exists() or os.environ.get("RENDER") == "true"
 is_readonly = False
 try:
     test_dir = Path("./.write_test_dir")
@@ -13,8 +14,7 @@ try:
 except Exception:
     is_readonly = True
 
-# Force writable directories in /tmp if we are on Render or running in a read-only filesystem
-if is_readonly or os.environ.get("RENDER") == "true":
+if (is_in_docker or is_readonly) and os.name != "nt":
     os.environ["DOCS_DIR"] = "/tmp/docs"
     os.environ["CHROMA_DIR"] = "/tmp/chroma_db"
     os.environ["FASTEMBED_CACHE"] = "/tmp/fastembed_cache"
