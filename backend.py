@@ -58,6 +58,10 @@ def status():
         "current_file": _curr_file,
     }
 
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok"}
+
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
     global _store, _curr_file

@@ -87,3 +87,17 @@ This repository includes a `render.yaml` configuration for automatic infrastruct
 3. Connect your GitHub repository.
 4. Input your `GROQ_API_KEY` under the secrets prompt.
 5. Click **Apply** to deploy the service automatically.
+
+---
+
+## ⚡ Keeping the Server Awake (Render Free Tier)
+
+Render spins down (sleeps) free-tier services after 15 minutes of inactivity. To keep your RAG assistant awake 24/7 and avoid slow cold-start spin-ups:
+
+1. Expose the lightweight endpoint `/api/ping` (already implemented).
+2. Register a free account at an external uptime monitoring service such as [UptimeRobot](https://uptimerobot.com/) or [Cron-job.org](https://cron-job.org/).
+3. Add a new HTTP/HTTPS monitor pointing to your public Render URL:
+   `https://<your-render-subdomain>.onrender.com/api/ping`
+4. Set the check interval to **every 10 or 14 minutes**.
+
+This will generate enough inbound traffic to prevent the container from sleeping, ensuring instant chat responses!
