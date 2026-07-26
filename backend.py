@@ -1,6 +1,13 @@
 import os
 import shutil
 from pathlib import Path
+
+# Force writable directories in /tmp for Render deployments (read-only filesystem by default)
+if os.environ.get("RENDER") == "true":
+    os.environ["DOCS_DIR"] = "/tmp/docs"
+    os.environ["CHROMA_DIR"] = "/tmp/chroma_db"
+    os.environ["FASTEMBED_CACHE"] = "/tmp/fastembed_cache"
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -18,6 +25,18 @@ _curr_file = None
 
 @app.on_event("startup")
 def warm_up():
+    # If on Render, copy pre-baked model cache from read-only image space (/app) to writable /tmp
+    if os.environ.get("RENDER") == "true":
+        src_cache = Path("/app/fastembed_cache")
+        dest_cache = Path("/tmp/fastembed_cache")
+        if src_cache.exists() and not dest_cache.exists():
+            print(f"Copying pre-baked FastEmbed model cache from {src_cache} to {dest_cache}...")
+            try:
+                shutil.copytree(src_cache, dest_cache)
+                print("Model cache copy completed.")
+            except Exception as e:
+                print(f"Warning: Failed to copy model cache: {e}")
+            
     rag.get_embeddings()
 
 def get_store():
