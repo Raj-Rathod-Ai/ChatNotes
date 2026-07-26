@@ -139,8 +139,9 @@ async function removeDocument(filename) {
         }
         
         await refreshStatus();
+        showToast(`Document "${filename}" removed from context index.`, 'success');
     } catch (err) {
-        alert("Deletion failed: " + err.message);
+        showToast("Deletion failed: " + err.message, 'error');
     }
 }
 
@@ -182,7 +183,7 @@ async function handleFileUpload(file) {
     const fileExt = file.name.split('.').pop().toLowerCase();
     
     if (!validExtensions.includes(fileExt)) {
-        alert("Unsupported file format! Please upload a PDF, TXT, or MD file.");
+        showToast("Unsupported file format! Please upload a PDF, TXT, or MD file.", "error");
         return;
     }
 
@@ -221,8 +222,9 @@ async function handleFileUpload(file) {
         }
         
         await refreshStatus();
+        showToast(`"${file.name}" uploaded and indexed successfully!`, "success");
     } catch (err) {
-        alert("Upload & Indexing failed: " + err.message);
+        showToast("Upload & Indexing failed: " + err.message, "error");
         await refreshStatus();
     } finally {
         fileInput.value = '';
@@ -261,8 +263,9 @@ document.getElementById('clearBtn').addEventListener('click', async () => {
         
         // 3. Wipes documents view in the sidebar status list
         await refreshStatus();
+        showToast("Workspace chat and database reset successfully.", "success");
     } catch (err) {
-        alert("Clear failed: " + err.message);
+        showToast("Clear failed: " + err.message, "error");
     }
 });
 
@@ -452,7 +455,7 @@ async function sendQuestion() {
                     throw new Error(JSON.parse(data));
                 } else if (eventType !== 'done' && data) {
                     fullText += JSON.parse(data);
-                    currentBotMessageHandles.contentDiv.innerHTML = renderMarkdown(fullText);
+                    currentBotMessageHandles.contentDiv.innerHTML = renderMarkdown(fullText) + '<span class="typing-cursor"></span>';
                     chatEl.scrollTop = chatEl.scrollHeight;
                 }
             }
@@ -463,6 +466,10 @@ async function sendQuestion() {
         lucide.createIcons();
     } finally {
         typingIndicator.classList.add('hidden');
+        if (currentBotMessageHandles && currentBotMessageHandles.contentDiv) {
+            const cursor = currentBotMessageHandles.contentDiv.querySelector('.typing-cursor');
+            if (cursor) cursor.remove();
+        }
         currentBotMessageHandles = null;
         chatEl.scrollTop = chatEl.scrollHeight;
     }

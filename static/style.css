@@ -860,3 +860,151 @@ h1, h2, h3, h4, .brand h1, .section-title, .status-title {
 .hidden {
     display: none !important;
 }
+
+/* --- PREMIUM REEL STYLING & ANIMATIONS --- */
+
+/* Blinking Cursor during Streaming */
+.typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background-color: var(--accent-start);
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: cursorBlink 0.8s infinite steps(2);
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
+
+/* Toast Notification Styles */
+.toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: rgba(10, 13, 22, 0.9);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--text-color);
+    font-size: 0.82rem;
+    font-weight: 500;
+    pointer-events: auto;
+    animation: toastSlideIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards,
+               toastFadeOut 0.4s ease-out 3.1s forwards;
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateX(120%) scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toastFadeOut {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+}
+
+.toast i {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+
+/* Toast Variant Colors */
+.toast.success {
+    border-color: rgba(16, 185, 129, 0.4);
+}
+.toast.success i {
+    color: #10b981;
+}
+
+.toast.error {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+.toast.error i {
+    color: #ef4444;
+}
+
+.toast.info {
+    border-color: rgba(245, 158, 11, 0.4);
+}
+.toast.info i {
+    color: #f59e0b;
+}
+
+/* High-End Pulsing Glows for Key Elements (Instagram Reels) */
+.brand-logo {
+    animation: logoGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes logoGlow {
+    0% {
+        text-shadow: 0 0 4px rgba(255, 110, 0, 0.2);
+    }
+    100% {
+        text-shadow: 0 0 16px rgba(255, 110, 0, 0.6), 0 0 24px rgba(255, 69, 0, 0.4);
+    }
+}
+
+/* File Upload dragover pulse */
+.upload-zone.drag-over {
+    border-color: var(--accent-start) !important;
+    background: rgba(255, 110, 0, 0.05) !important;
+    box-shadow: inset 0 0 24px rgba(255, 110, 0, 0.08) !important;
+    animation: pulseGlow 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: inset 0 0 12px rgba(255, 110, 0, 0.04), 0 0 8px rgba(255, 110, 0, 0.1);
+    }
+    100% {
+        box-shadow: inset 0 0 32px rgba(255, 110, 0, 0.12), 0 0 20px rgba(255, 110, 0, 0.3);
+    }
+}
+
+/* Custom Message Entry bounce effects */
+.message-row {
+    animation: bubbleSlideIn 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+@keyframes bubbleSlideIn {
+    from {
+        transform: translateY(24px) scale(0.96);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
