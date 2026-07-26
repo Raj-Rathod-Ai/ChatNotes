@@ -35,11 +35,33 @@ def get_embeddings() -> FastEmbedEmbeddings:
         get_embeddings._model = FastEmbedEmbeddings(model_name='BAAI/bge-small-en-v1.5', cache_dir=EMB_CACHE)
     return get_embeddings._model
 
-def get_llm(model: str | None = None) -> ChatGroq:
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        raise ValueError("GROQ_API_KEY environment variable is not set.")
-    return ChatGroq(model=model or "llama-3.1-8b-instant", temperature=0)
+def get_llm(model: str | None = None):
+    # Determine default model based on available API keys
+    default_model = "llama-3.1-8b-instant"
+    if not os.environ.get("GROQ_API_KEY") and os.environ.get("MISTRAL_API_KEY"):
+        default_model = "mistral-large-latest"
+        
+    model_name = model or default_model
+    
+    # Check if the requested model is a Mistral model
+    is_mistral = (
+        model_name.startswith("mistral") or 
+        model_name.startswith("open-mixtral") or 
+        "mixtral" in model_name or 
+        "pixtral" in model_name
+    )
+    
+    if is_mistral:
+        api_key = os.environ.get("MISTRAL_API_KEY")
+        if not api_key:
+            raise ValueError("MISTRAL_API_KEY environment variable is not set.")
+        from langchain_mistralai import ChatMistralAI
+        return ChatMistralAI(model=model_name, temperature=0, api_key=api_key)
+    else:
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY environment variable is not set.")
+        return ChatGroq(model=model_name, temperature=0)
 
 
 def build_index(doc: str = "docs") -> Chroma:

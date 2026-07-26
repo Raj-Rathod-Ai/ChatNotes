@@ -13,6 +13,10 @@ services:
       - key: GROQ_API_KEY
         sync: false               # "sync: false" means "don't auto-fill — user must set it"
 
+      # Set your Mistral API key in the Render dashboard (Mark as secret).
+      - key: MISTRAL_API_KEY
+        sync: false
+
       # /tmp is the only writable path on Render's free tier.
       # Data here is lost on restart — acceptable for a demo app.
       - key: DOCS_DIR
