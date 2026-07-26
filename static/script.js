@@ -64,10 +64,13 @@ async function refreshStatus() {
                         <p class="file-name truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</p>
                         <p class="file-status-sub">Ready to query</p>
                     </div>
-                    <button class="file-delete-btn" onclick="removeDocument('${escapeHtml(filename)}')" title="Delete document">
+                    <button class="file-delete-btn" title="Delete document">
                         <i data-lucide="x" style="width: 14px; height: 14px;"></i>
                     </button>
                 `;
+                fileCard.querySelector('.file-delete-btn').addEventListener('click', () => {
+                    removeDocument(filename);
+                });
                 fileList.appendChild(fileCard);
             });
             
