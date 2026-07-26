@@ -358,7 +358,8 @@ async function sendQuestion() {
         });
         
         if (!res.ok) {
-            throw new Error("API failed to respond.");
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "API failed to respond.");
         }
         
         const reader = res.body.getReader();
