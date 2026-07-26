@@ -1,0 +1,21 @@
+# Python Virtual Environment
+.venv/
+
+# Environment configurations (contains API keys)
+.env
+
+# Python compilation cache
+__pycache__/
+*.py[cod]
+
+# Local Chroma vector database storage
+.chroma_db/
+
+# Local FastEmbed model download cache
+fastembed_cache/
+
+# User-uploaded notes and files
+docs/
+
+# Portable Git
+mingit/

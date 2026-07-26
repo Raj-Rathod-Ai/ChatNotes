@@ -1,0 +1,21 @@
+# render.yaml — tells Render how to build and run the app.
+# Commit this file and connect the GitHub repo at dashboard.render.com.
+
+services:
+  - type: web
+    name: chat-with-your-notes
+    env: docker                   # use our Dockerfile (not Render's auto-detect)
+    plan: free
+    dockerfilePath: ./Dockerfile
+
+    envVars:
+      # Set your Groq API key in the Render dashboard (Mark as secret).
+      - key: GROQ_API_KEY
+        sync: false               # "sync: false" means "don't auto-fill — user must set it"
+
+      # /tmp is the only writable path on Render's free tier.
+      # Data here is lost on restart — acceptable for a demo app.
+      - key: DOCS_DIR
+        value: /tmp/docs
+      - key: CHROMA_DIR
+        value: /tmp/chroma_db

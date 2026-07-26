@@ -1,0 +1,19 @@
+# ── RAG pipeline ──────────────────────────────────────────────────────────────
+langchain>=0.3,<1              # orchestration framework: loaders, splitters, chains
+langchain-community>=0.3,<1   # community loaders (PyPDFLoader, TextLoader, FastEmbed)
+langchain-chroma>=0.2,<1      # LangChain ↔ ChromaDB bridge
+langchain-text-splitters>=0.3,<1  # RecursiveCharacterTextSplitter
+
+# ── Embedding model ───────────────────────────────────────────────────────────
+fastembed>=0.4,<1              # local CPU embeddings, no GPU/OpenAI needed (~130 MB download)
+
+# ── PDF support ───────────────────────────────────────────────────────────────
+pypdf>=5,<6                    # used by PyPDFLoader to parse .pdf files
+
+# ── LLM ───────────────────────────────────────────────────────────────────────
+langchain-groq>=0.2,<1         # Groq API wrapper (fast, free LLM inference)
+
+# ── Web API ───────────────────────────────────────────────────────────────────
+fastapi>=0.115,<1              # the web framework — routes, validation, CORS
+uvicorn[standard]>=0.30,<1    # ASGI server that runs the FastAPI app
+python-multipart>=0.0.9,<1    # required by FastAPI to parse file uploads
