@@ -2,8 +2,19 @@ import os
 import shutil
 from pathlib import Path
 
-# Force writable directories in /tmp for Render deployments (read-only filesystem by default)
-if os.environ.get("RENDER") == "true":
+# Detect read-only filesystem (typical for Render runtime containers running Docker)
+is_readonly = False
+try:
+    test_dir = Path("./.write_test_dir")
+    test_dir.mkdir(exist_ok=True)
+    (test_dir / "test.txt").write_text("test")
+    (test_dir / "test.txt").unlink()
+    test_dir.rmdir()
+except Exception:
+    is_readonly = True
+
+# Force writable directories in /tmp if we are on Render or running in a read-only filesystem
+if is_readonly or os.environ.get("RENDER") == "true":
     os.environ["DOCS_DIR"] = "/tmp/docs"
     os.environ["CHROMA_DIR"] = "/tmp/chroma_db"
     os.environ["FASTEMBED_CACHE"] = "/tmp/fastembed_cache"
@@ -25,7 +36,7 @@ _store = None
 @app.on_event("startup")
 def warm_up():
     # If on Render, copy pre-baked model cache from read-only image space (/app) to writable /tmp
-    if os.environ.get("RENDER") == "true":
+    if os.environ.get("RENDER") == "true" or os.environ.get("FASTEMBED_CACHE") == "/tmp/fastembed_cache":
         src_cache = Path("/app/fastembed_cache")
         dest_cache = Path("/tmp/fastembed_cache")
         if src_cache.exists() and not dest_cache.exists():
