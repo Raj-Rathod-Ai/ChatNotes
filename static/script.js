@@ -164,51 +164,57 @@ async function removeDocument(filename) {
 
 dropZone.addEventListener('drop', (e) => {
     const dt = e.dataTransfer;
-    const files = dt.files;
+    const files = Array.from(dt.files);
     if (files.length > 0) {
-        handleFileUpload(files[0]);
+        handleMultipleFilesUpload(files);
     }
 });
 
 fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        handleFileUpload(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+        handleMultipleFilesUpload(files);
     }
 });
 
-// File Upload Handler
-async function handleFileUpload(file) {
+// Multiple Files Upload Handler
+async function handleMultipleFilesUpload(files) {
     const validExtensions = ['pdf', 'txt', 'md'];
-    const fileExt = file.name.split('.').pop().toLowerCase();
+    const invalidFiles = files.filter(f => !validExtensions.includes(f.name.split('.').pop().toLowerCase()));
     
-    if (!validExtensions.includes(fileExt)) {
-        showToast("Unsupported file format! Please upload a PDF, TXT, or MD file.", "error");
+    if (invalidFiles.length > 0) {
+        showToast("Unsupported format found! Upload only PDF, TXT, or MD.", "error");
         return;
     }
 
-    // Add a temporary card with a loader inside fileList so the user sees progress!
-    const tempCard = document.createElement('div');
-    tempCard.className = 'current-file-card';
-    tempCard.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-    tempCard.style.background = 'rgba(245, 158, 11, 0.03)';
-    tempCard.innerHTML = `
-        <div class="file-icon-wrapper">
-            <div class="typing-dots" style="padding:0;"><span></span><span></span><span></span></div>
-        </div>
-        <div class="file-details">
-            <p class="file-name truncate">${escapeHtml(file.name)}</p>
-            <p class="file-status-sub">Uploading & indexing...</p>
-        </div>
-    `;
-    
+    const tempCards = [];
     // Remove the empty list container placeholder if present
     const emptyMsg = fileList.querySelector('.file-list-empty');
     if (emptyMsg) emptyMsg.remove();
-    fileList.appendChild(tempCard);
+
+    // Render loading cards for each file
+    files.forEach(file => {
+        const tempCard = document.createElement('div');
+        tempCard.className = 'current-file-card temp-uploading';
+        tempCard.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+        tempCard.style.background = 'rgba(245, 158, 11, 0.03)';
+        tempCard.innerHTML = `
+            <div class="file-icon-wrapper">
+                <div class="typing-dots" style="padding:0;"><span></span><span></span><span></span></div>
+            </div>
+            <div class="file-details">
+                <p class="file-name truncate">${escapeHtml(file.name)}</p>
+                <p class="file-status-sub">Uploading & indexing...</p>
+            </div>
+        `;
+        fileList.appendChild(tempCard);
+        tempCards.push(tempCard);
+    });
     
     const fd = new FormData();
-    fd.append('file', file);
+    files.forEach(file => {
+        fd.append('files', file); // 'files' is the parameter name in backend FastAPI upload route
+    });
     
     try {
         const res = await fetch('/api/upload', {
@@ -218,13 +224,15 @@ async function handleFileUpload(file) {
         
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || "Server failed to process document.");
+            throw new Error(err.detail || "Server failed to process documents.");
         }
         
         await refreshStatus();
-        showToast(`"${file.name}" uploaded and indexed successfully!`, "success");
+        showToast(`${files.length} document(s) uploaded and indexed successfully!`, "success");
     } catch (err) {
         showToast("Upload & Indexing failed: " + err.message, "error");
+        // Remove the temporary loading cards on failure
+        tempCards.forEach(card => card.remove());
         await refreshStatus();
     } finally {
         fileInput.value = '';

@@ -70,16 +70,18 @@ def ping():
     return {"status": "ok"}
 
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(files: list[UploadFile] = File(...)):
     global _store
-    if Path(file.filename).suffix.lower() not in (".pdf", ".txt", ".md"):
-        raise HTTPException(400, "wrong file type")
-        
     docs_dir = Path(DOCS_DIR)
     docs_dir.mkdir(parents=True, exist_ok=True)
     
-    dest = docs_dir / file.filename
-    dest.write_bytes(await file.read())
+    saved_files = []
+    for file in files:
+        if Path(file.filename).suffix.lower() not in (".pdf", ".txt", ".md"):
+            raise HTTPException(400, f"Unsupported file type: {file.filename}")
+        dest = docs_dir / file.filename
+        dest.write_bytes(await file.read())
+        saved_files.append(file.filename)
 
     try:
         # Release vector store SQLite locks and run garbage collection before rebuilding
@@ -89,12 +91,14 @@ async def upload(file: UploadFile = File(...)):
         
         _store = rag.build_index(DOCS_DIR)
     except ValueError as e:
-        # Clean up the file if indexing failed
-        if dest.exists():
-            dest.unlink()
+        # Clean up saved files if indexing failed
+        for fname in saved_files:
+            dest = docs_dir / fname
+            if dest.exists():
+                dest.unlink()
         raise HTTPException(400, str(e))
         
-    return {"ok": True, "filename": file.filename}
+    return {"ok": True, "filenames": saved_files}
 
 @app.post("/api/clear")
 def clear_all():
