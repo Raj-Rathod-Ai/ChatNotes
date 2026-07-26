@@ -92,24 +92,29 @@ async def upload(files: list[UploadFile] = File(...)):
             raise HTTPException(400, f"Unsupported file type: {file.filename}")
         dest = docs_dir / file.filename
         dest.write_bytes(await file.read())
-        saved_files.append(file.filename)
+        saved_files.append((file.filename, dest))
 
     try:
-        # Release vector store SQLite locks and run garbage collection before rebuilding
-        _store = None
-        import gc
-        gc.collect()
-        
-        _store = rag.build_index(DOCS_DIR)
+        # Get current store instance (loads it if exists, else returns None)
+        store = get_store()
+        if store is None:
+            # If no store exists, initialize a new vector database
+            _store = rag.build_index(DOCS_DIR)
+        else:
+            # Incremental update: For each uploaded file, clear its old chunks and add new chunks
+            for filename, dest in saved_files:
+                # Clear old chunks first in case the user is overwriting an existing file
+                rag.remove_file_from_index(store, dest)
+                # Add new chunks
+                rag.add_file_to_index(store, dest)
     except ValueError as e:
         # Clean up saved files if indexing failed
-        for fname in saved_files:
-            dest = docs_dir / fname
+        for filename, dest in saved_files:
             if dest.exists():
                 dest.unlink()
         raise HTTPException(400, str(e))
         
-    return {"ok": True, "filenames": saved_files}
+    return {"ok": True, "filenames": [f[0] for f in saved_files]}
 
 @app.post("/api/clear")
 def clear_all():
@@ -147,19 +152,19 @@ def remove_file(req: RemoveRequest):
     if not target.exists():
         raise HTTPException(404, "file not found")
         
-    # Delete file
+    # Delete file from local storage
     target.unlink()
-    
-    # Release vector store SQLite locks and run garbage collection
-    _store = None
-    import gc
-    gc.collect()
     
     # Determine remaining files
     remaining = [f for f in docs_dir.glob("*") if f.suffix.lower() in (".pdf", ".txt", ".md")]
     
+    store = get_store()
     if not remaining:
-        # No files remaining, delete vector store
+        # No files remaining: clear global reference, force garbage collection, and purge DB files
+        _store = None
+        import gc
+        gc.collect()
+        
         chroma_dir = Path(rag.CHROMA_DIR)
         if chroma_dir.exists():
             try:
@@ -167,11 +172,17 @@ def remove_file(req: RemoveRequest):
             except Exception as e:
                 print(f"Warning: Failed to delete chroma directory: {e}")
     else:
-        # Rebuild index from remaining files
-        try:
-            _store = rag.build_index(DOCS_DIR)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+        # Incremental removal: delete just the chunks of the removed file
+        if store is not None:
+            try:
+                rag.remove_file_from_index(store, target)
+            except Exception as e:
+                # Fallback: if incremental delete fails, do a full rebuild
+                print(f"Warning: Incremental deletion failed, rebuilding index: {e}")
+                _store = None
+                import gc
+                gc.collect()
+                _store = rag.build_index(DOCS_DIR)
             
     return {"ok": True}
 

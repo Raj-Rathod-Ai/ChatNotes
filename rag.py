@@ -94,6 +94,16 @@ def load_index()->Chroma:
         raise FileNotFoundError(f"No index found at {CHROMA_DIR}")
     return Chroma(persist_directory=CHROMA_DIR,embedding=get_embeddings())
 
+def add_file_to_index(store: Chroma, file_path: Path):
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
+    loader = PyPDFLoader(str(file_path)) if file_path.suffix.lower() == ".pdf" else TextLoader(str(file_path), encoding="utf-8")
+    chunks = splitter.split_documents(loader.load())
+    if chunks:
+        store.add_documents(chunks)
+
+def remove_file_from_index(store: Chroma, file_path: Path):
+    store._collection.delete(where={"source": str(file_path)})
+
 def format_docs(docs)->str:
     parts = []
     for doc in docs:
